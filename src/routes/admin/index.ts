@@ -1,11 +1,10 @@
-import fp from "fastify-plugin";
 import type { FastifyInstance } from "fastify";
 import adminCategoryRoutes from "./categories";
 import adminSeriesRoutes from "./series";
 import adminSeasonRoutes from "./seasons";
 import adminEpisodeRoutes from "./episodes";
 
-export default fp(async function adminRoutes(fastify: FastifyInstance) {
+export default async function adminRoutes(fastify: FastifyInstance) {
   fastify.addHook("preHandler", async (request, reply) => {
     await fastify.verifyServiceRequest(request, reply);
 
@@ -35,7 +34,6 @@ export default fp(async function adminRoutes(fastify: FastifyInstance) {
       );
     }
 
-    // Expose admin identity to downstream handlers if needed
     request.headers["x-admin-id"] = adminId;
     request.log = request.log.child({
       adminId,
@@ -50,4 +48,4 @@ export default fp(async function adminRoutes(fastify: FastifyInstance) {
   await fastify.register(adminSeriesRoutes, { prefix: "/catalog/series" });
   await fastify.register(adminSeasonRoutes, { prefix: "/catalog/seasons" });
   await fastify.register(adminEpisodeRoutes, { prefix: "/catalog/episodes" });
-});
+}

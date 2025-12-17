@@ -1,4 +1,3 @@
-import fp from "fastify-plugin";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { loadConfig } from "../config";
@@ -17,8 +16,7 @@ import { getRedis } from "../lib/redis";
 import { TrendingService } from "../services/trending-service";
 import { RedisCatalogEventsPublisher } from "../services/catalog-events";
 
-export default fp(async function internalRoutes(fastify: FastifyInstance) {
-  const config = loadConfig();
+export default async function internalRoutes(fastify: FastifyInstance) {  const config = loadConfig();
   const redis = getRedis();
   const eventsPublisher = new RedisCatalogEventsPublisher(
     redis,
@@ -189,4 +187,4 @@ export default fp(async function internalRoutes(fastify: FastifyInstance) {
       }
     },
   });
-});
+}

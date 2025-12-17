@@ -1,4 +1,3 @@
-import fp from "fastify-plugin";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { loadConfig } from "../../config";
 import {
@@ -14,7 +13,7 @@ import { ViewerCatalogService } from "../../services/viewer-catalog-service";
 import { getRedis } from "../../lib/redis";
 import { TrendingService } from "../../services/trending-service";
 
-export default fp(async function viewerCatalogRoutes(fastify: FastifyInstance) {
+export default async function viewerCatalogRoutes(fastify: FastifyInstance) {
   const config = loadConfig();
   const redis = getRedis();
   const trendingService = new TrendingService(redis, {
@@ -115,4 +114,4 @@ export default fp(async function viewerCatalogRoutes(fastify: FastifyInstance) {
       };
     },
   });
-});
+}
