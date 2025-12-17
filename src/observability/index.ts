@@ -1,4 +1,4 @@
-import { NodeSDK } from "@opentelemetry/sdk-node";
+import { NodeSDK, metrics } from "@opentelemetry/sdk-node";
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
 import { Resource } from "@opentelemetry/resources";
 import { SemanticResourceAttributes } from "@opentelemetry/semantic-conventions";
@@ -41,17 +41,17 @@ export async function startObservability(config: ObservabilityConfig) {
     ? new OTLPTraceExporter({ url: config.tracesEndpoint })
     : undefined;
 
-  const metricExporter = config.metricsEndpoint
-    ? new OTLPMetricExporter({ url: config.metricsEndpoint })
+  const metricReader = config.metricsEndpoint
+    ? new metrics.PeriodicExportingMetricReader({
+        exporter: new OTLPMetricExporter({ url: config.metricsEndpoint }),
+        exportIntervalMillis: config.metricsExportIntervalMillis,
+      })
     : undefined;
 
   sdk = new NodeSDK({
     resource: buildResource(config),
     traceExporter,
-    metricExporter,
-    metricInterval: metricExporter
-      ? config.metricsExportIntervalMillis
-      : undefined,
+    metricReader,
     instrumentations,
   });
 
