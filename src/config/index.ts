@@ -6,19 +6,32 @@ dotenv.config();
 const DEFAULT_OWNER_ID = "00000000-0000-0000-0000-000000000001" as const;
 
 const envSchema = z.object({
-  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  NODE_ENV: z
+    .enum(["development", "test", "production"])
+    .default("development"),
   HTTP_HOST: z.string().default("0.0.0.0"),
   HTTP_PORT: z.coerce.number().int().positive().default(4600),
   HTTP_BODY_LIMIT: z.coerce.number().int().positive().default(1_048_576),
+  GRPC_BIND_ADDRESS: z.string().default("0.0.0.0:50061"),
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace"])
     .default("info"),
+  DATABASE_URL: z.string().url(),
+  REDIS_URL: z.string().url(),
   SERVICE_AUTH_TOKEN: z
     .string()
     .optional()
-    .transform((value) => (value && value.trim().length > 0 ? value : undefined)),
+    .transform((value) =>
+      value && value.trim().length > 0 ? value : undefined
+    ),
   CDN_BASE_URL: z.string().url().default("https://cdn.local.pocketlol"),
   DEFAULT_OWNER_ID: z.string().uuid().default(DEFAULT_OWNER_ID),
+  FEED_CACHE_TTL_SECONDS: z.coerce.number().int().nonnegative().default(60),
+  SERIES_CACHE_TTL_SECONDS: z.coerce.number().int().nonnegative().default(120),
+  RELATED_CACHE_TTL_SECONDS: z.coerce.number().int().nonnegative().default(180),
+  CATALOG_EVENT_STREAM_KEY: z.string().default("catalog:events"),
+  TRENDING_SORTED_SET_KEY: z.string().default("catalog:trending"),
+  RATINGS_HASH_KEY: z.string().default("catalog:ratings"),
 });
 
 type Env = z.infer<typeof envSchema>;

@@ -10,6 +10,8 @@ import cors from "@fastify/cors";
 import { loadConfig } from "./config";
 import serviceAuthPlugin from "./plugins/service-auth";
 import internalRoutes from "./routes/internal";
+import adminRoutes from "./routes/admin";
+import viewerCatalogRoutes from "./routes/viewer/catalog";
 
 export async function buildApp() {
   const config = loadConfig();
@@ -40,6 +42,13 @@ export async function buildApp() {
   await app.register(helmet, { contentSecurityPolicy: false });
   await app.register(serviceAuthPlugin);
   await app.register(internalRoutes, { prefix: "/internal" });
+
+  // Ensure external HTTP surface follows /api/v1/{service}/... convention
+  const externalBase = "/api/v1/content";
+  await app.register(adminRoutes, { prefix: `${externalBase}/admin` });
+  await app.register(viewerCatalogRoutes, {
+    prefix: `${externalBase}/catalog`,
+  });
 
   app.get("/health", async () => ({ status: "ok" }));
 

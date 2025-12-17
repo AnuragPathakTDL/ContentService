@@ -1,0 +1,755 @@
+import {
+  Category,
+  Episode,
+  MediaAsset,
+  MediaAssetStatus,
+  MediaAssetVariant,
+  MediaAssetType,
+  Prisma,
+  PublicationStatus,
+  Season,
+  Series,
+  Visibility,
+} from "@prisma/client";
+import { getPrisma } from "../lib/prisma";
+
+export type PaginationParams = {
+  limit?: number;
+  cursor?: string | null;
+};
+
+export type PaginatedResult<T> = {
+  items: T[];
+  nextCursor: string | null;
+};
+
+export type EpisodeWithRelations = Episode & {
+  series: Series & {
+    category: Category | null;
+  };
+  season: Season | null;
+  mediaAsset: (MediaAsset & { variants: MediaAssetVariant[] }) | null;
+};
+
+export type SeriesWithRelations = Series & {
+  category: Category | null;
+  seasons: Array<
+    Season & {
+      episodes: EpisodeWithRelations[];
+    }
+  >;
+  standaloneEpisodes: EpisodeWithRelations[];
+};
+
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 100;
+
+function normalizeLimit(limit?: number) {
+  if (!limit) {
+    return DEFAULT_PAGE_SIZE;
+  }
+  return Math.max(1, Math.min(limit, MAX_PAGE_SIZE));
+}
+
+export class CatalogRepository {
+  private readonly prisma = getPrisma();
+
+  async findCategoryById(id: string) {
+    return this.prisma.category.findFirst({
+      where: { id, deletedAt: null },
+    });
+  }
+
+  async findCategoryBySlug(slug: string) {
+    return this.prisma.category.findFirst({
+      where: { slug, deletedAt: null },
+    });
+  }
+
+  async createCategory(data: {
+    slug: string;
+    name: string;
+    description?: string | null;
+    displayOrder?: number | null;
+    adminId?: string;
+  }) {
+    return this.prisma.category.create({
+      data: {
+        slug: data.slug,
+        name: data.name,
+        description: data.description ?? null,
+        displayOrder: data.displayOrder ?? null,
+        createdByAdminId: data.adminId,
+        updatedByAdminId: data.adminId,
+      },
+    });
+  }
+
+  async updateCategory(
+    id: string,
+    data: {
+      name?: string;
+      description?: string | null;
+      displayOrder?: number | null;
+      slug?: string;
+      adminId?: string;
+    }
+  ) {
+    return this.prisma.category.update({
+      where: { id },
+      data: {
+        name: data.name,
+        description: data.description,
+        displayOrder: data.displayOrder,
+        slug: data.slug,
+        updatedByAdminId: data.adminId,
+      },
+    });
+  }
+
+  async softDeleteCategory(id: string, adminId?: string) {
+    return this.prisma.category.update({
+      where: { id },
+      data: {
+        deletedAt: new Date(),
+        updatedByAdminId: adminId,
+      },
+    });
+  }
+
+  async listCategories(
+    params: PaginationParams
+  ): Promise<PaginatedResult<Category>> {
+    const limit = normalizeLimit(params.limit);
+    const rows = await this.prisma.category.findMany({
+      where: { deletedAt: null },
+      orderBy: { createdAt: "desc" },
+      take: limit + 1,
+      cursor: params.cursor ? { id: params.cursor } : undefined,
+      skip: params.cursor ? 1 : 0,
+    });
+    let nextCursor: string | null = null;
+    if (rows.length > limit) {
+      const next = rows.pop();
+      nextCursor = next?.id ?? null;
+    }
+    return { items: rows, nextCursor };
+  }
+
+  async createSeries(data: {
+    slug: string;
+    title: string;
+    synopsis?: string | null;
+    heroImageUrl?: string | null;
+    bannerImageUrl?: string | null;
+    tags?: string[];
+    status?: PublicationStatus;
+    visibility?: Visibility;
+    releaseDate?: Date | null;
+    ownerId: string;
+    categoryId?: string | null;
+    adminId?: string;
+  }) {
+    return this.prisma.series.create({
+      data: {
+        slug: data.slug,
+        title: data.title,
+        synopsis: data.synopsis ?? null,
+        heroImageUrl: data.heroImageUrl ?? null,
+        bannerImageUrl: data.bannerImageUrl ?? null,
+        tags: data.tags ?? [],
+        status: data.status ?? PublicationStatus.DRAFT,
+        visibility: data.visibility ?? Visibility.PUBLIC,
+        releaseDate: data.releaseDate ?? null,
+        ownerId: data.ownerId,
+        categoryId: data.categoryId ?? null,
+        createdByAdminId: data.adminId,
+        updatedByAdminId: data.adminId,
+      },
+    });
+  }
+
+  async updateSeries(
+    id: string,
+    data: {
+      title?: string;
+      synopsis?: string | null;
+      heroImageUrl?: string | null;
+      bannerImageUrl?: string | null;
+      tags?: string[];
+      status?: PublicationStatus;
+      visibility?: Visibility;
+      releaseDate?: Date | null;
+      categoryId?: string | null;
+      slug?: string;
+      ownerId?: string;
+      adminId?: string;
+    }
+  ) {
+    return this.prisma.series.update({
+      where: { id },
+      data: {
+        title: data.title,
+        synopsis: data.synopsis,
+        heroImageUrl: data.heroImageUrl,
+        bannerImageUrl: data.bannerImageUrl,
+        tags: data.tags,
+        status: data.status,
+        visibility: data.visibility,
+        releaseDate: data.releaseDate,
+        categoryId: data.categoryId,
+        slug: data.slug,
+        ownerId: data.ownerId,
+        updatedByAdminId: data.adminId,
+      },
+    });
+  }
+
+  async findSeriesById(id: string) {
+    return this.prisma.series.findFirst({
+      where: { id, deletedAt: null },
+    });
+  }
+
+  async findSeriesBySlug(slug: string) {
+    return this.prisma.series.findFirst({
+      where: { slug, deletedAt: null },
+    });
+  }
+
+  async softDeleteSeries(id: string, adminId?: string) {
+    return this.prisma.series.update({
+      where: { id },
+      data: {
+        deletedAt: new Date(),
+        updatedByAdminId: adminId,
+      },
+    });
+  }
+
+  async createSeason(data: {
+    seriesId: string;
+    sequenceNumber: number;
+    title: string;
+    synopsis?: string | null;
+    releaseDate?: Date | null;
+    adminId?: string;
+  }) {
+    return this.prisma.season.create({
+      data: {
+        seriesId: data.seriesId,
+        sequenceNumber: data.sequenceNumber,
+        title: data.title,
+        synopsis: data.synopsis ?? null,
+        releaseDate: data.releaseDate ?? null,
+        createdByAdminId: data.adminId,
+        updatedByAdminId: data.adminId,
+      },
+    });
+  }
+
+  async findSeasonById(id: string) {
+    return this.prisma.season.findFirst({
+      where: { id, deletedAt: null },
+    });
+  }
+
+  async createEpisode(data: {
+    slug: string;
+    seriesId: string;
+    seasonId?: string | null;
+    title: string;
+    synopsis?: string | null;
+    durationSeconds: number;
+    status?: PublicationStatus;
+    visibility?: Visibility;
+    publishedAt?: Date | null;
+    availabilityStart?: Date | null;
+    availabilityEnd?: Date | null;
+    heroImageUrl?: string | null;
+    defaultThumbnailUrl?: string | null;
+    captions?: Prisma.InputJsonValue | null;
+    adminId?: string;
+  }) {
+    return this.prisma.episode.create({
+      data: {
+        slug: data.slug,
+        seriesId: data.seriesId,
+        seasonId: data.seasonId ?? null,
+        title: data.title,
+        synopsis: data.synopsis ?? null,
+        durationSeconds: data.durationSeconds,
+        status: data.status ?? PublicationStatus.DRAFT,
+        visibility: data.visibility ?? Visibility.PUBLIC,
+        publishedAt: data.publishedAt ?? null,
+        availabilityStart: data.availabilityStart ?? null,
+        availabilityEnd: data.availabilityEnd ?? null,
+        heroImageUrl: data.heroImageUrl ?? null,
+        defaultThumbnailUrl: data.defaultThumbnailUrl ?? null,
+        captions:
+          data.captions === undefined
+            ? undefined
+            : (data.captions ?? Prisma.JsonNull),
+        createdByAdminId: data.adminId,
+        updatedByAdminId: data.adminId,
+      },
+    });
+  }
+
+  async updateEpisode(
+    id: string,
+    data: {
+      title?: string;
+      synopsis?: string | null;
+      durationSeconds?: number;
+      status?: PublicationStatus;
+      visibility?: Visibility;
+      publishedAt?: Date | null;
+      availabilityStart?: Date | null;
+      availabilityEnd?: Date | null;
+      heroImageUrl?: string | null;
+      defaultThumbnailUrl?: string | null;
+      captions?: Prisma.InputJsonValue | null;
+      seasonId?: string | null;
+      slug?: string;
+      adminId?: string;
+    }
+  ) {
+    return this.prisma.episode.update({
+      where: { id },
+      data: {
+        title: data.title,
+        synopsis: data.synopsis,
+        durationSeconds: data.durationSeconds,
+        status: data.status,
+        visibility: data.visibility,
+        publishedAt: data.publishedAt,
+        availabilityStart: data.availabilityStart,
+        availabilityEnd: data.availabilityEnd,
+        heroImageUrl: data.heroImageUrl,
+        defaultThumbnailUrl: data.defaultThumbnailUrl,
+        captions:
+          data.captions === undefined
+            ? undefined
+            : (data.captions ?? Prisma.JsonNull),
+        seasonId: data.seasonId,
+        slug: data.slug,
+        updatedByAdminId: data.adminId,
+      },
+    });
+  }
+
+  async findEpisodeById(id: string) {
+    return this.prisma.episode.findFirst({
+      where: { id, deletedAt: null },
+      include: {
+        mediaAsset: {
+          include: { variants: true },
+        },
+      },
+    });
+  }
+
+  async softDeleteEpisode(id: string, adminId?: string) {
+    return this.prisma.episode.update({
+      where: { id },
+      data: {
+        deletedAt: new Date(),
+        updatedByAdminId: adminId,
+      },
+    });
+  }
+
+  async updateEpisodeStatus(
+    id: string,
+    status: PublicationStatus,
+    adminId?: string,
+    publishedAt?: Date | null
+  ) {
+    return this.prisma.episode.update({
+      where: { id },
+      data: {
+        status,
+        publishedAt,
+        updatedByAdminId: adminId,
+      },
+    });
+  }
+
+  async upsertEpisodeAsset(data: {
+    episodeId: string;
+    adminId?: string;
+    status: MediaAssetStatus;
+    sourceUploadId?: string | null;
+    streamingAssetId?: string | null;
+    manifestUrl?: string | null;
+    defaultThumbnailUrl?: string | null;
+    variants: Array<{
+      label: string;
+      width?: number | null;
+      height?: number | null;
+      bitrateKbps?: number | null;
+      codec?: string | null;
+      frameRate?: number | null;
+    }>;
+  }) {
+    return this.prisma.$transaction(async (tx) => {
+      const asset = await tx.mediaAsset.upsert({
+        where: { episodeId: data.episodeId },
+        update: {
+          status: data.status,
+          sourceUploadId: data.sourceUploadId ?? null,
+          streamingAssetId: data.streamingAssetId ?? null,
+          manifestUrl: data.manifestUrl ?? null,
+          defaultThumbnailUrl: data.defaultThumbnailUrl ?? null,
+          updatedByAdminId: data.adminId,
+          variants: {
+            deleteMany: {},
+            create: data.variants.map((variant) => ({
+              label: variant.label,
+              width: variant.width ?? null,
+              height: variant.height ?? null,
+              bitrateKbps: variant.bitrateKbps ?? null,
+              codec: variant.codec ?? null,
+              frameRate: variant.frameRate ?? null,
+            })),
+          },
+        },
+        create: {
+          episodeId: data.episodeId,
+          type: MediaAssetType.EPISODE,
+          status: data.status,
+          sourceUploadId: data.sourceUploadId ?? null,
+          streamingAssetId: data.streamingAssetId ?? null,
+          manifestUrl: data.manifestUrl ?? null,
+          defaultThumbnailUrl: data.defaultThumbnailUrl ?? null,
+          createdByAdminId: data.adminId,
+          updatedByAdminId: data.adminId,
+          variants: {
+            create: data.variants.map((variant) => ({
+              label: variant.label,
+              width: variant.width ?? null,
+              height: variant.height ?? null,
+              bitrateKbps: variant.bitrateKbps ?? null,
+              codec: variant.codec ?? null,
+              frameRate: variant.frameRate ?? null,
+            })),
+          },
+        },
+        include: {
+          variants: true,
+        },
+      });
+
+      await tx.episode.update({
+        where: { id: data.episodeId },
+        data: {
+          defaultThumbnailUrl: data.defaultThumbnailUrl ?? null,
+          updatedByAdminId: data.adminId,
+        },
+      });
+
+      return asset;
+    });
+  }
+
+  async listModerationQueue(params: {
+    status?: PublicationStatus | null;
+    limit?: number;
+    cursor?: string | null;
+  }): Promise<
+    PaginatedResult<
+      Episode & {
+        mediaAsset: Pick<MediaAsset, "status" | "manifestUrl"> | null;
+      }
+    >
+  > {
+    const limit = normalizeLimit(params.limit);
+    const statusFilter: Prisma.EnumPublicationStatusFilter = params.status
+      ? { equals: params.status }
+      : { in: [PublicationStatus.REVIEW, PublicationStatus.DRAFT] };
+    const where: Prisma.EpisodeWhereInput = {
+      deletedAt: null,
+      status: statusFilter,
+    };
+
+    const rows = await this.prisma.episode.findMany({
+      where,
+      include: {
+        mediaAsset: {
+          select: {
+            status: true,
+            manifestUrl: true,
+          },
+        },
+      },
+      orderBy: {
+        updatedAt: "desc",
+      },
+      take: limit + 1,
+      cursor: params.cursor ? { id: params.cursor } : undefined,
+      skip: params.cursor ? 1 : 0,
+    });
+
+    let nextCursor: string | null = null;
+    if (rows.length > limit) {
+      const next = rows.pop();
+      nextCursor = next?.id ?? null;
+    }
+
+    return {
+      items: rows,
+      nextCursor,
+    };
+  }
+
+  async listFeedEpisodes(params: {
+    limit?: number;
+    cursor?: string | null;
+    now?: Date;
+  }): Promise<PaginatedResult<EpisodeWithRelations>> {
+    const limit = normalizeLimit(params.limit);
+    const now = params.now ?? new Date();
+    const availabilityFilter: Prisma.EpisodeWhereInput = {
+      OR: [{ availabilityStart: null }, { availabilityStart: { lte: now } }],
+      AND: [{ availabilityEnd: null }, { availabilityEnd: { gte: now } }],
+    };
+
+    const rows = await this.prisma.episode.findMany({
+      where: {
+        deletedAt: null,
+        status: PublicationStatus.PUBLISHED,
+        visibility: { in: [Visibility.PUBLIC, Visibility.UNLISTED] },
+        publishedAt: { lte: now },
+        ...availabilityFilter,
+        mediaAsset: {
+          is: {
+            status: MediaAssetStatus.READY,
+            deletedAt: null,
+          },
+        },
+        series: {
+          deletedAt: null,
+          status: PublicationStatus.PUBLISHED,
+          visibility: Visibility.PUBLIC,
+        },
+      },
+      include: {
+        mediaAsset: {
+          include: {
+            variants: true,
+          },
+        },
+        series: {
+          include: {
+            category: true,
+          },
+        },
+        season: true,
+      },
+      orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
+      take: limit + 1,
+      cursor: params.cursor ? { id: params.cursor } : undefined,
+      skip: params.cursor ? 1 : 0,
+    });
+
+    let nextCursor: string | null = null;
+    if (rows.length > limit) {
+      const next = rows.pop();
+      nextCursor = next?.id ?? null;
+    }
+
+    return {
+      items: rows as EpisodeWithRelations[],
+      nextCursor,
+    };
+  }
+
+  async findSeriesForViewer(params: {
+    slug: string;
+    now?: Date;
+  }): Promise<SeriesWithRelations | null> {
+    const now = params.now ?? new Date();
+    const availabilityFilter: Prisma.EpisodeWhereInput = {
+      OR: [{ availabilityStart: null }, { availabilityStart: { lte: now } }],
+      AND: [{ availabilityEnd: null }, { availabilityEnd: { gte: now } }],
+    };
+
+    const series = await this.prisma.series.findFirst({
+      where: {
+        slug: params.slug,
+        deletedAt: null,
+        status: PublicationStatus.PUBLISHED,
+        visibility: Visibility.PUBLIC,
+        OR: [{ releaseDate: null }, { releaseDate: { lte: now } }],
+      },
+      include: {
+        category: true,
+        seasons: {
+          where: { deletedAt: null },
+          orderBy: { sequenceNumber: "asc" },
+          include: {
+            episodes: {
+              where: {
+                deletedAt: null,
+                status: PublicationStatus.PUBLISHED,
+                visibility: { in: [Visibility.PUBLIC, Visibility.UNLISTED] },
+                publishedAt: { lte: now },
+                ...availabilityFilter,
+                mediaAsset: {
+                  is: {
+                    status: MediaAssetStatus.READY,
+                    deletedAt: null,
+                  },
+                },
+              },
+              include: {
+                mediaAsset: {
+                  include: {
+                    variants: true,
+                  },
+                },
+                series: {
+                  include: {
+                    category: true,
+                  },
+                },
+                season: true,
+              },
+              orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
+            },
+          },
+        },
+        episodes: {
+          where: {
+            deletedAt: null,
+            seasonId: null,
+            status: PublicationStatus.PUBLISHED,
+            visibility: { in: [Visibility.PUBLIC, Visibility.UNLISTED] },
+            publishedAt: { lte: now },
+            ...availabilityFilter,
+            mediaAsset: {
+              is: {
+                status: MediaAssetStatus.READY,
+                deletedAt: null,
+              },
+            },
+          },
+          include: {
+            mediaAsset: {
+              include: {
+                variants: true,
+              },
+            },
+            series: {
+              include: {
+                category: true,
+              },
+            },
+            season: true,
+          },
+          orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
+        },
+      },
+    });
+
+    if (!series) {
+      return null;
+    }
+
+    const { episodes = [], seasons, ...rest } = series;
+    const standaloneEpisodes = episodes as EpisodeWithRelations[];
+    const normalizedSeasons = seasons.map((season) => ({
+      ...season,
+      episodes: (season.episodes ?? []) as EpisodeWithRelations[],
+    }));
+
+    return {
+      ...(rest as Series & { category: Category | null }),
+      seasons: normalizedSeasons,
+      standaloneEpisodes,
+    };
+  }
+
+  async listRelatedSeries(params: {
+    seriesId: string;
+    categoryId?: string | null;
+    limit?: number;
+    now?: Date;
+  }): Promise<Array<Series & { category: Category | null }>> {
+    const limit = normalizeLimit(params.limit);
+    const now = params.now ?? new Date();
+    return this.prisma.series.findMany({
+      where: {
+        id: { not: params.seriesId },
+        deletedAt: null,
+        status: PublicationStatus.PUBLISHED,
+        visibility: Visibility.PUBLIC,
+        OR: [{ releaseDate: null }, { releaseDate: { lte: now } }],
+        categoryId: params.categoryId ?? undefined,
+        episodes: {
+          some: {
+            deletedAt: null,
+            status: PublicationStatus.PUBLISHED,
+            mediaAsset: {
+              is: {
+                status: MediaAssetStatus.READY,
+                deletedAt: null,
+              },
+            },
+          },
+        },
+      },
+      include: {
+        category: true,
+      },
+      orderBy: [{ releaseDate: "desc" }, { updatedAt: "desc" }],
+      take: limit,
+    }) as Promise<Array<Series & { category: Category | null }>>;
+  }
+
+  async findEpisodeForViewer(
+    id: string,
+    now = new Date()
+  ): Promise<EpisodeWithRelations | null> {
+    const availabilityFilter: Prisma.EpisodeWhereInput = {
+      OR: [{ availabilityStart: null }, { availabilityStart: { lte: now } }],
+      AND: [{ availabilityEnd: null }, { availabilityEnd: { gte: now } }],
+    };
+
+    return this.prisma.episode.findFirst({
+      where: {
+        id,
+        deletedAt: null,
+        status: PublicationStatus.PUBLISHED,
+        visibility: { in: [Visibility.PUBLIC, Visibility.UNLISTED] },
+        publishedAt: { lte: now },
+        ...availabilityFilter,
+        mediaAsset: {
+          is: {
+            status: MediaAssetStatus.READY,
+            deletedAt: null,
+          },
+        },
+        series: {
+          deletedAt: null,
+          status: PublicationStatus.PUBLISHED,
+          visibility: Visibility.PUBLIC,
+        },
+      },
+      include: {
+        mediaAsset: {
+          include: {
+            variants: true,
+          },
+        },
+        series: {
+          include: {
+            category: true,
+          },
+        },
+        season: true,
+      },
+    }) as Promise<EpisodeWithRelations | null>;
+  }
+}
