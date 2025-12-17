@@ -2,10 +2,24 @@ import { buildApp } from "./app";
 import { loadConfig } from "./config";
 import { startGrpcServer, stopGrpcServer } from "./grpc/server";
 import { disconnectPrisma } from "./lib/prisma";
+import { startObservability, shutdownObservability } from "./observability";
+import { OperationsMetrics } from "./observability/operations-metrics";
+import packageJson from "../package.json";
 
 async function main() {
-  const app = await buildApp();
   const config = loadConfig();
+
+  await startObservability({
+    serviceName: config.OTEL_SERVICE_NAME,
+    serviceVersion: packageJson.version,
+    tracesEndpoint: config.OTEL_TRACES_ENDPOINT,
+    metricsEndpoint: config.OTEL_METRICS_ENDPOINT,
+    metricsExportIntervalMillis: config.OTEL_METRICS_EXPORT_INTERVAL_MS,
+  });
+
+  const operationsMetrics = new OperationsMetrics();
+
+  const app = await buildApp();
   let grpcServer: Awaited<ReturnType<typeof startGrpcServer>> | undefined;
 
   try {
@@ -21,6 +35,8 @@ async function main() {
       await stopGrpcServer(grpcServer);
     }
     await disconnectPrisma();
+    operationsMetrics.shutdown();
+    await shutdownObservability();
     await app.close();
     process.exit(1);
   }
@@ -32,6 +48,8 @@ async function main() {
         await stopGrpcServer(grpcServer);
       }
       await disconnectPrisma();
+      operationsMetrics.shutdown();
+      await shutdownObservability();
       await app.close();
       process.exit(0);
     } catch (error) {

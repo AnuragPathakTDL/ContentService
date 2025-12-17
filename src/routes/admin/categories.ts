@@ -57,7 +57,10 @@ export default async function adminCategoryRoutes(fastify: FastifyInstance) {
             return reply.status(412).send({ message: error.message });
           }
         }
-        request.log.error({ err: error }, "Failed to create category");
+        request.log.error(
+          { err: error, contentId: body.slug },
+          "Failed to create category"
+        );
         return reply.status(500).send({ message: "Unable to create category" });
       }
     },
@@ -81,7 +84,10 @@ export default async function adminCategoryRoutes(fastify: FastifyInstance) {
         ) {
           return reply.status(404).send({ message: error.message });
         }
-        request.log.error({ err: error }, "Failed to fetch category");
+        request.log.error(
+          { err: error, contentId: params.id },
+          "Failed to fetch category"
+        );
         return reply.status(500).send({ message: "Unable to fetch category" });
       }
     },
@@ -120,7 +126,10 @@ export default async function adminCategoryRoutes(fastify: FastifyInstance) {
             return reply.status(409).send({ message: error.message });
           }
         }
-        request.log.error({ err: error }, "Failed to update category");
+        request.log.error(
+          { err: error, contentId: params.id },
+          "Failed to update category"
+        );
         return reply.status(500).send({ message: "Unable to update category" });
       }
     },
@@ -149,7 +158,10 @@ export default async function adminCategoryRoutes(fastify: FastifyInstance) {
             return reply.status(409).send({ message: error.message });
           }
         }
-        request.log.error({ err: error }, "Failed to replace category");
+        request.log.error(
+          { err: error, contentId: params.id },
+          "Failed to replace category"
+        );
         return reply
           .status(500)
           .send({ message: "Unable to replace category" });
@@ -176,7 +188,10 @@ export default async function adminCategoryRoutes(fastify: FastifyInstance) {
         ) {
           return reply.status(404).send({ message: error.message });
         }
-        request.log.error({ err: error }, "Failed to delete category");
+        request.log.error(
+          { err: error, contentId: params.id },
+          "Failed to delete category"
+        );
         return reply.status(500).send({ message: "Unable to delete category" });
       }
     },

@@ -68,7 +68,10 @@ export default async function adminEpisodeRoutes(fastify: FastifyInstance) {
             return reply.status(404).send({ message: error.message });
           }
         }
-        request.log.error({ err: error }, "Failed to create episode");
+        request.log.error(
+          { err: error, contentId: body.slug },
+          "Failed to create episode"
+        );
         return reply.status(500).send({ message: "Unable to create episode" });
       }
     },
@@ -76,7 +79,8 @@ export default async function adminEpisodeRoutes(fastify: FastifyInstance) {
 
   fastify.post<{
     Params: { id: string };
-  }>("/:id/transition", {
+  }>("/:id/status", {
+    config: { metricsId: "/admin/catalog/episodes/:id/status" },
     schema: {
       params: z.object({ id: z.string().uuid() }),
       body: transitionSchema,
@@ -101,7 +105,10 @@ export default async function adminEpisodeRoutes(fastify: FastifyInstance) {
             return reply.status(409).send({ message: error.message });
           }
         }
-        request.log.error({ err: error }, "Failed to transition episode");
+        request.log.error(
+          { err: error, contentId: params.id },
+          "Failed to transition episode"
+        );
         return reply
           .status(500)
           .send({ message: "Unable to transition episode" });
@@ -135,7 +142,10 @@ export default async function adminEpisodeRoutes(fastify: FastifyInstance) {
             return reply.status(412).send({ message: error.message });
           }
         }
-        request.log.error({ err: error }, "Failed to register episode asset");
+        request.log.error(
+          { err: error, contentId: params.id },
+          "Failed to register episode asset"
+        );
         return reply
           .status(500)
           .send({ message: "Unable to register episode asset" });
@@ -180,7 +190,10 @@ export default async function adminEpisodeRoutes(fastify: FastifyInstance) {
         ) {
           return reply.status(404).send({ message: error.message });
         }
-        request.log.error({ err: error }, "Failed to delete episode");
+        request.log.error(
+          { err: error, contentId: params.id },
+          "Failed to delete episode"
+        );
         return reply.status(500).send({ message: "Unable to delete episode" });
       }
     },

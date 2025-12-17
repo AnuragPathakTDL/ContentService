@@ -752,4 +752,124 @@ export class CatalogRepository {
       },
     }) as Promise<EpisodeWithRelations | null>;
   }
+
+  async countUnpublishedContent(): Promise<{
+    series: number;
+    seasons: number;
+    episodes: number;
+    assetsAwaiting: number;
+  }> {
+    const [series, seasons, episodes, assetsAwaiting] = await Promise.all([
+      this.prisma.series.count({
+        where: {
+          deletedAt: null,
+          status: { not: PublicationStatus.PUBLISHED },
+        },
+      }),
+      this.prisma.season.count({
+        where: {
+          deletedAt: null,
+          status: { not: PublicationStatus.PUBLISHED },
+        },
+      }),
+      this.prisma.episode.count({
+        where: {
+          deletedAt: null,
+          status: { not: PublicationStatus.PUBLISHED },
+        },
+      }),
+      this.prisma.mediaAsset.count({
+        where: {
+          deletedAt: null,
+          status: {
+            in: [MediaAssetStatus.PENDING, MediaAssetStatus.PROCESSING],
+          },
+          episode: {
+            is: {
+              deletedAt: null,
+            },
+          },
+        },
+      }),
+    ]);
+    return { series, seasons, episodes, assetsAwaiting };
+  }
+
+  async countScheduledReleases(): Promise<{
+    next24Hours: number;
+    next7Days: number;
+    future: number;
+  }> {
+    const now = new Date();
+    const in24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const baseWhere: Prisma.EpisodeWhereInput = {
+      deletedAt: null,
+      status: {
+        in: [
+          PublicationStatus.DRAFT,
+          PublicationStatus.REVIEW,
+          PublicationStatus.PUBLISHED,
+        ],
+      },
+    };
+
+    const next24Hours = await this.prisma.episode.count({
+      where: {
+        ...baseWhere,
+        OR: [
+          { publishedAt: { gt: now, lte: in24Hours } },
+          { availabilityStart: { gt: now, lte: in24Hours } },
+        ],
+      },
+    });
+
+    const next7Days = await this.prisma.episode.count({
+      where: {
+        ...baseWhere,
+        OR: [
+          { publishedAt: { gt: in24Hours, lte: in7Days } },
+          { availabilityStart: { gt: in24Hours, lte: in7Days } },
+        ],
+      },
+    });
+
+    const future = await this.prisma.episode.count({
+      where: {
+        ...baseWhere,
+        OR: [
+          { publishedAt: { gt: in7Days } },
+          { availabilityStart: { gt: in7Days } },
+        ],
+      },
+    });
+
+    return { next24Hours, next7Days, future };
+  }
+
+  async getIngestionLatencyStats(days: number): Promise<{
+    averageSeconds: number | null;
+    p95Seconds: number | null;
+  }> {
+    const rows = await this.prisma.$queryRaw<
+      Array<{ avg_seconds: number | null; p95_seconds: number | null }>
+    >(Prisma.sql`
+      SELECT
+        AVG(EXTRACT(EPOCH FROM (ma."updatedAt" - e."createdAt"))) AS avg_seconds,
+        PERCENTILE_CONT(0.95) WITHIN GROUP (
+          ORDER BY EXTRACT(EPOCH FROM (ma."updatedAt" - e."createdAt"))
+        ) AS p95_seconds
+      FROM "MediaAsset" ma
+      JOIN "Episode" e ON e."id" = ma."episodeId"
+      WHERE ma."status" = ${MediaAssetStatus.READY}
+        AND ma."deletedAt" IS NULL
+        AND e."deletedAt" IS NULL
+        AND ma."updatedAt" >= NOW() - (INTERVAL '1 day' * ${days})
+    `);
+    const [row] = rows;
+    return {
+      averageSeconds: row?.avg_seconds ?? null,
+      p95Seconds: row?.p95_seconds ?? null,
+    };
+  }
 }

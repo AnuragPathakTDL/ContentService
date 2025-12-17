@@ -47,7 +47,10 @@ export default async function adminSeasonRoutes(fastify: FastifyInstance) {
             return reply.status(404).send({ message: error.message });
           }
         }
-        request.log.error({ err: error }, "Failed to create season");
+        request.log.error(
+          { err: error, contentId: body.seriesId },
+          "Failed to create season"
+        );
         return reply.status(500).send({ message: "Unable to create season" });
       }
     },

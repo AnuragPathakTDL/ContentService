@@ -60,7 +60,10 @@ export default async function adminSeriesRoutes(fastify: FastifyInstance) {
             return reply.status(412).send({ message: error.message });
           }
         }
-        request.log.error({ err: error }, "Failed to create series");
+        request.log.error(
+          { err: error, contentId: body.slug },
+          "Failed to create series"
+        );
         return reply.status(500).send({ message: "Unable to create series" });
       }
     },
@@ -92,7 +95,10 @@ export default async function adminSeriesRoutes(fastify: FastifyInstance) {
             return reply.status(412).send({ message: error.message });
           }
         }
-        request.log.error({ err: error }, "Failed to update series");
+        request.log.error(
+          { err: error, contentId: params.id },
+          "Failed to update series"
+        );
         return reply.status(500).send({ message: "Unable to update series" });
       }
     },
@@ -117,7 +123,10 @@ export default async function adminSeriesRoutes(fastify: FastifyInstance) {
         ) {
           return reply.status(404).send({ message: error.message });
         }
-        request.log.error({ err: error }, "Failed to delete series");
+        request.log.error(
+          { err: error, contentId: params.id },
+          "Failed to delete series"
+        );
         return reply.status(500).send({ message: "Unable to delete series" });
       }
     },

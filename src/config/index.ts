@@ -32,6 +32,14 @@ const envSchema = z.object({
   CATALOG_EVENT_STREAM_KEY: z.string().default("catalog:events"),
   TRENDING_SORTED_SET_KEY: z.string().default("catalog:trending"),
   RATINGS_HASH_KEY: z.string().default("catalog:ratings"),
+  OTEL_SERVICE_NAME: z.string().default("content-service"),
+  OTEL_TRACES_ENDPOINT: z.string().url().optional(),
+  OTEL_METRICS_ENDPOINT: z.string().url().optional(),
+  OTEL_METRICS_EXPORT_INTERVAL_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(60000),
 });
 
 type Env = z.infer<typeof envSchema>;

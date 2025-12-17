@@ -142,8 +142,27 @@ export const relatedSeriesResponseSchema = z.object({
   ),
 });
 
+export const categoryListQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  cursor: z.string().uuid().optional(),
+});
+
+export const categoryListResponseSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.string().uuid(),
+      slug: z.string(),
+      name: z.string(),
+      description: z.string().nullable(),
+      displayOrder: z.number().int().nullable(),
+    })
+  ),
+  nextCursor: z.string().uuid().nullable(),
+});
+
 export type FeedQuery = z.infer<typeof feedQuerySchema>;
 export type FeedResponse = z.infer<typeof feedResponseSchema>;
 export type SeriesDetailResponse = z.infer<typeof seriesDetailResponseSchema>;
 export type RelatedSeriesResponse = z.infer<typeof relatedSeriesResponseSchema>;
+export type CategoryListResponse = z.infer<typeof categoryListResponseSchema>;
 export type FeedItem = z.infer<typeof feedItemSchema>;

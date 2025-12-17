@@ -15,8 +15,10 @@ import { ViewerCatalogService } from "../services/viewer-catalog-service";
 import { getRedis } from "../lib/redis";
 import { TrendingService } from "../services/trending-service";
 import { RedisCatalogEventsPublisher } from "../services/catalog-events";
+import { DataQualityMonitor } from "../services/data-quality-monitor";
 
-export default async function internalRoutes(fastify: FastifyInstance) {  const config = loadConfig();
+export default async function internalRoutes(fastify: FastifyInstance) {
+  const config = loadConfig();
   const redis = getRedis();
   const eventsPublisher = new RedisCatalogEventsPublisher(
     redis,
@@ -36,6 +38,7 @@ export default async function internalRoutes(fastify: FastifyInstance) {  const 
     relatedCacheTtlSeconds: config.RELATED_CACHE_TTL_SECONDS,
     redis,
     trending: trendingService,
+    qualityMonitor: new DataQualityMonitor(),
   });
   const systemActorId = "SYSTEM";
 
@@ -72,7 +75,10 @@ export default async function internalRoutes(fastify: FastifyInstance) {  const 
         ) {
           throw fastify.httpErrors.notFound("Category not found");
         }
-        request.log.error({ err: error }, "Failed to fetch category");
+        request.log.error(
+          { err: error, contentId: params.id },
+          "Failed to fetch category"
+        );
         throw fastify.httpErrors.internalServerError(
           "Unable to fetch category"
         );
@@ -123,7 +129,7 @@ export default async function internalRoutes(fastify: FastifyInstance) {  const 
           }
         }
         request.log.error(
-          { err: error, episodeId: params.id },
+          { err: error, contentId: params.id },
           "Failed to register episode asset via internal route"
         );
         return reply
@@ -160,7 +166,7 @@ export default async function internalRoutes(fastify: FastifyInstance) {  const 
           }
         }
         request.log.error(
-          { err: error, episodeId: body.episodeId },
+          { err: error, contentId: body.episodeId },
           "Failed to process media event"
         );
         return reply
