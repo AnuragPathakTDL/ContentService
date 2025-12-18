@@ -10,6 +10,7 @@ import cors from "@fastify/cors";
 import { loadConfig } from "./config";
 import serviceAuthPlugin from "./plugins/service-auth";
 import metricsPlugin from "./plugins/metrics";
+import responseEnvelopePlugin from "./plugins/response-envelope";
 import internalRoutes from "./routes/internal";
 import adminRoutes from "./routes/admin";
 import viewerCatalogRoutes from "./routes/viewer/catalog";
@@ -42,6 +43,7 @@ export async function buildApp() {
   await app.register(cors, { origin: false });
   await app.register(helmet, { contentSecurityPolicy: false });
   await app.register(metricsPlugin);
+  await app.register(responseEnvelopePlugin);
   await app.register(serviceAuthPlugin);
   await app.register(internalRoutes, { prefix: "/internal" });
 
