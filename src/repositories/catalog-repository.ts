@@ -7,8 +7,10 @@ import {
   MediaAssetType,
   Prisma,
   PublicationStatus,
+  Reel,
   Season,
   Series,
+  Tag,
   Visibility,
 } from "@prisma/client";
 import { getPrisma } from "../lib/prisma";
@@ -134,6 +136,58 @@ export class CatalogRepository {
       nextCursor = next?.id ?? null;
     }
     return { items: rows, nextCursor };
+  }
+
+  async createTag(data: {
+    slug: string;
+    name: string;
+    description?: string | null;
+    adminId?: string;
+  }) {
+    return this.prisma.tag.create({
+      data: {
+        slug: data.slug,
+        name: data.name,
+        description: data.description ?? null,
+        createdByAdminId: data.adminId,
+        updatedByAdminId: data.adminId,
+      },
+    });
+  }
+
+  async listTags(params: PaginationParams): Promise<PaginatedResult<Tag>> {
+    const limit = normalizeLimit(params.limit);
+    const rows = await this.prisma.tag.findMany({
+      where: { deletedAt: null },
+      orderBy: { createdAt: "desc" },
+      take: limit + 1,
+      cursor: params.cursor ? { id: params.cursor } : undefined,
+      skip: params.cursor ? 1 : 0,
+    });
+    let nextCursor: string | null = null;
+    if (rows.length > limit) {
+      const next = rows.pop();
+      nextCursor = next?.id ?? null;
+    }
+    return { items: rows, nextCursor };
+  }
+
+  async findTagsByNames(names: string[]) {
+    if (names.length === 0) {
+      return [] as Tag[];
+    }
+    return this.prisma.tag.findMany({
+      where: {
+        name: { in: names },
+        deletedAt: null,
+      },
+    });
+  }
+
+  async findTagBySlug(slug: string) {
+    return this.prisma.tag.findFirst({
+      where: { slug, deletedAt: null },
+    });
   }
 
   async createSeries(data: {
@@ -269,6 +323,7 @@ export class CatalogRepository {
     heroImageUrl?: string | null;
     defaultThumbnailUrl?: string | null;
     captions?: Prisma.InputJsonValue | null;
+    tags?: string[];
     adminId?: string;
   }) {
     return this.prisma.episode.create({
@@ -290,6 +345,7 @@ export class CatalogRepository {
           data.captions === undefined
             ? undefined
             : (data.captions ?? Prisma.JsonNull),
+        tags: data.tags ?? [],
         createdByAdminId: data.adminId,
         updatedByAdminId: data.adminId,
       },
@@ -312,6 +368,7 @@ export class CatalogRepository {
       captions?: Prisma.InputJsonValue | null;
       seasonId?: string | null;
       slug?: string;
+      tags?: string[];
       adminId?: string;
     }
   ) {
@@ -334,13 +391,33 @@ export class CatalogRepository {
             : (data.captions ?? Prisma.JsonNull),
         seasonId: data.seasonId,
         slug: data.slug,
+        tags: data.tags,
         updatedByAdminId: data.adminId,
       },
     });
   }
 
+  async updateEpisodeTags(id: string, tags: string[], adminId?: string) {
+    return this.prisma.episode.update({
+      where: { id },
+      data: { tags, updatedByAdminId: adminId },
+      select: { id: true, tags: true },
+    });
+  }
+
   async findEpisodeById(id: string) {
     return this.prisma.episode.findFirst({
+      where: { id, deletedAt: null },
+      include: {
+        mediaAsset: {
+          include: { variants: true },
+        },
+      },
+    });
+  }
+
+  async findReelById(id: string) {
+    return this.prisma.reel.findFirst({
       where: { id, deletedAt: null },
       include: {
         mediaAsset: {
@@ -357,6 +434,14 @@ export class CatalogRepository {
         deletedAt: new Date(),
         updatedByAdminId: adminId,
       },
+    });
+  }
+
+  async updateReelTags(id: string, tags: string[], adminId?: string) {
+    return this.prisma.reel.update({
+      where: { id },
+      data: { tags, updatedByAdminId: adminId },
+      select: { id: true, tags: true },
     });
   }
 

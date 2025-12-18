@@ -18,6 +18,7 @@ export type ViewerFeedItem = {
   id: string;
   slug: string;
   title: string;
+  tags: string[];
   synopsis: string | null;
   heroImageUrl: string | null;
   defaultThumbnailUrl: string | null;
@@ -214,6 +215,7 @@ function buildFeedItem(
     id: episode.id,
     slug: episode.slug,
     title: episode.title,
+    tags: episode.tags,
     synopsis: episode.synopsis ?? null,
     heroImageUrl: episode.heroImageUrl ?? episode.series.heroImageUrl ?? null,
     defaultThumbnailUrl:

@@ -113,6 +113,7 @@ model Episode {
   heroImageUrl       String?
   defaultThumbnailUrl String?
   captions           Json?
+  tags               String[]          @default([])
   createdByAdminId   String?
   updatedByAdminId   String?
   createdAt          DateTime          @default(now())
@@ -194,4 +195,16 @@ model MediaAssetVariant {
 
   @@unique([mediaAssetId, label])
   @@index([mediaAssetId])
+}
+
+model Tag {
+  id               String   @id @default(uuid())
+  slug             String   @unique
+  name             String   @unique
+  description      String?
+  createdByAdminId String?
+  updatedByAdminId String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  deletedAt        DateTime?
 }

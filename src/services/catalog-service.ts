@@ -44,6 +44,14 @@ export type CatalogServiceOptions = {
   eventsPublisher?: CatalogEventsPublisher;
 };
 
+function slugify(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 export class CatalogService {
   private readonly repo: CatalogRepository;
   private readonly defaultOwnerId: string;
@@ -53,6 +61,26 @@ export class CatalogService {
     this.repo = options.repository ?? new CatalogRepository();
     this.defaultOwnerId = options.defaultOwnerId;
     this.events = options.eventsPublisher;
+  }
+
+  private async ensureTagsExist(tags?: string[]) {
+    if (!tags || tags.length === 0) {
+      return;
+    }
+    const normalized = tags.map((tag) => tag.trim()).filter(Boolean);
+    if (normalized.length === 0) {
+      return;
+    }
+    const found = await this.repo.findTagsByNames(normalized);
+    const missing = normalized.filter(
+      (tag) => !found.some((entry) => entry.name === tag)
+    );
+    if (missing.length > 0) {
+      throw new CatalogServiceError(
+        "FAILED_PRECONDITION",
+        `Tags not found: ${missing.join(", ")}`
+      );
+    }
   }
 
   private async emitCatalogEvent(event: {
@@ -122,6 +150,40 @@ export class CatalogService {
     cursor?: string | null;
   }): Promise<PaginatedResult<Category>> {
     return this.repo.listCategories(params);
+  }
+
+  async createTag(
+    adminId: string,
+    input: { name: string; description?: string | null; slug?: string }
+  ) {
+    const slug = (input.slug ?? slugify(input.name)) || slugify(input.name);
+    try {
+      const tag = await this.repo.createTag({
+        slug,
+        name: input.name.trim(),
+        description: input.description ?? null,
+        adminId,
+      });
+      await this.emitCatalogEvent({
+        entity: "tag",
+        entityId: tag.id,
+        operation: "create",
+        payload: { slug: tag.slug },
+      });
+      return tag;
+    } catch (error) {
+      if (isKnownPrismaError(error, "P2002")) {
+        throw new CatalogServiceError(
+          "CONFLICT",
+          "Tag with this name or slug already exists"
+        );
+      }
+      throw error;
+    }
+  }
+
+  async listTags(params: { limit?: number; cursor?: string | null }) {
+    return this.repo.listTags(params);
   }
 
   async updateCategory(
@@ -210,6 +272,9 @@ export class CatalogService {
       categoryId?: string | null;
     }
   ): Promise<Series> {
+    const tags = input.tags?.map((tag) => tag.trim()).filter(Boolean) ?? [];
+    await this.ensureTagsExist(tags);
+
     if (input.categoryId) {
       const category = await this.repo.findCategoryById(input.categoryId);
       if (!category) {
@@ -226,7 +291,7 @@ export class CatalogService {
         synopsis: input.synopsis ?? null,
         heroImageUrl: input.heroImageUrl ?? null,
         bannerImageUrl: input.bannerImageUrl ?? null,
-        tags: input.tags ?? [],
+        tags,
         status: input.status,
         visibility: input.visibility,
         releaseDate: input.releaseDate ?? null,
@@ -285,13 +350,17 @@ export class CatalogService {
         );
       }
     }
+
+    const tags = input.tags?.map((tag) => tag.trim()).filter(Boolean);
+    await this.ensureTagsExist(tags);
+
     try {
       const series = await this.repo.updateSeries(id, {
         title: input.title,
         synopsis: input.synopsis,
         heroImageUrl: input.heroImageUrl,
         bannerImageUrl: input.bannerImageUrl,
-        tags: input.tags,
+        tags,
         status: input.status,
         visibility: input.visibility,
         releaseDate: input.releaseDate,
@@ -383,8 +452,12 @@ export class CatalogService {
       heroImageUrl?: string | null;
       defaultThumbnailUrl?: string | null;
       captions?: unknown;
+      tags?: string[];
     }
   ): Promise<Episode> {
+    const tags = input.tags?.map((tag) => tag.trim()).filter(Boolean) ?? [];
+    await this.ensureTagsExist(tags);
+
     const series = await this.repo.findSeriesById(input.seriesId);
     if (!series) {
       throw new CatalogServiceError("NOT_FOUND", "Series not found");
@@ -415,6 +488,7 @@ export class CatalogService {
         heroImageUrl: input.heroImageUrl ?? null,
         defaultThumbnailUrl: input.defaultThumbnailUrl ?? null,
         captions: input.captions as Prisma.JsonValue | null,
+        tags,
         adminId,
       });
       await this.emitCatalogEvent({
@@ -480,6 +554,22 @@ export class CatalogService {
     return updated;
   }
 
+  async updateEpisodeTags(
+    adminId: string,
+    episodeId: string,
+    tags: string[]
+  ): Promise<{ id: string; tags: string[] }> {
+    const episode = await this.repo.findEpisodeById(episodeId);
+    if (!episode) {
+      throw new CatalogServiceError("NOT_FOUND", "Episode not found");
+    }
+
+    const normalized = tags.map((tag) => tag.trim()).filter(Boolean);
+    await this.ensureTagsExist(normalized);
+
+    return this.repo.updateEpisodeTags(episodeId, normalized, adminId);
+  }
+
   async deleteEpisode(adminId: string, id: string): Promise<void> {
     const existing = await this.repo.findEpisodeById(id);
     if (!existing) {
@@ -495,6 +585,22 @@ export class CatalogService {
         seasonId: existing.seasonId,
       },
     });
+  }
+
+  async updateReelTags(
+    adminId: string,
+    reelId: string,
+    tags: string[]
+  ): Promise<{ id: string; tags: string[] }> {
+    const reel = await this.repo.findReelById(reelId);
+    if (!reel) {
+      throw new CatalogServiceError("NOT_FOUND", "Reel not found");
+    }
+
+    const normalized = tags.map((tag) => tag.trim()).filter(Boolean);
+    await this.ensureTagsExist(normalized);
+
+    return this.repo.updateReelTags(reelId, normalized, adminId);
   }
 
   async registerEpisodeAsset(

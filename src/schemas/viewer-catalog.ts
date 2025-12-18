@@ -54,6 +54,7 @@ const feedItemSchema = z.object({
   id: z.string().uuid(),
   slug: z.string(),
   title: z.string(),
+  tags: z.array(z.string()),
   synopsis: z.string().nullable(),
   heroImageUrl: z.string().url().nullable(),
   defaultThumbnailUrl: z.string().url().nullable(),

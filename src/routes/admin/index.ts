@@ -3,6 +3,8 @@ import adminCategoryRoutes from "./categories";
 import adminSeriesRoutes from "./series";
 import adminSeasonRoutes from "./seasons";
 import adminEpisodeRoutes from "./episodes";
+import adminTagRoutes from "./tags";
+import adminReelRoutes from "./reels";
 
 export default async function adminRoutes(fastify: FastifyInstance) {
   fastify.addHook("preHandler", async (request, reply) => {
@@ -48,4 +50,6 @@ export default async function adminRoutes(fastify: FastifyInstance) {
   await fastify.register(adminSeriesRoutes, { prefix: "/catalog/series" });
   await fastify.register(adminSeasonRoutes, { prefix: "/catalog/seasons" });
   await fastify.register(adminEpisodeRoutes, { prefix: "/catalog/episodes" });
+  await fastify.register(adminReelRoutes, { prefix: "/catalog/reels" });
+  await fastify.register(adminTagRoutes, { prefix: "/catalog/tags" });
 }
