@@ -2,7 +2,7 @@ import type { Redis } from "ioredis";
 
 export type CatalogEvent = {
   type: "catalog.updated";
-  entity: "category" | "series" | "season" | "episode" | "mediaAsset";
+  entity: "category" | "series" | "season" | "episode" | "mediaAsset" | "tag";
   entityId: string;
   operation: "create" | "update" | "delete";
   timestamp: string;
