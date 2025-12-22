@@ -6,7 +6,6 @@ import {
   CatalogService,
   CatalogServiceError,
 } from "../services/catalog-service";
-import { viewerFeedItemSchema } from "../schemas/viewer-catalog";
 import {
   engagementMetricsEventSchema,
   mediaProcessedEventSchema,
@@ -45,9 +44,6 @@ export default async function internalRoutes(fastify: FastifyInstance) {
   fastify.get("/videos/:id", {
     schema: {
       params: z.object({ id: z.string().uuid() }),
-      response: {
-        200: viewerFeedItemSchema,
-      },
     },
     handler: async (request) => {
       const params = z.object({ id: z.string().uuid() }).parse(request.params);
@@ -89,9 +85,6 @@ export default async function internalRoutes(fastify: FastifyInstance) {
   fastify.get("/catalog/media/:id", {
     schema: {
       params: z.object({ id: z.string().uuid() }),
-      response: {
-        200: viewerFeedItemSchema,
-      },
     },
     handler: async (request) => {
       const params = z.object({ id: z.string().uuid() }).parse(request.params);
@@ -122,19 +115,19 @@ export default async function internalRoutes(fastify: FastifyInstance) {
       } catch (error) {
         if (error instanceof CatalogServiceError) {
           if (error.code === "NOT_FOUND") {
-            return reply.status(404).send({ message: error.message });
+            throw fastify.httpErrors.notFound(error.message);
           }
           if (error.code === "FAILED_PRECONDITION") {
-            return reply.status(412).send({ message: error.message });
+            throw fastify.httpErrors.preconditionFailed(error.message);
           }
         }
         request.log.error(
           { err: error, contentId: params.id },
           "Failed to register episode asset via internal route"
         );
-        return reply
-          .status(500)
-          .send({ message: "Unable to register episode asset" });
+        throw fastify.httpErrors.internalServerError(
+          "Unable to register episode asset"
+        );
       }
     },
   });
@@ -159,19 +152,19 @@ export default async function internalRoutes(fastify: FastifyInstance) {
       } catch (error) {
         if (error instanceof CatalogServiceError) {
           if (error.code === "NOT_FOUND") {
-            return reply.status(404).send({ message: error.message });
+            throw fastify.httpErrors.notFound(error.message);
           }
           if (error.code === "FAILED_PRECONDITION") {
-            return reply.status(412).send({ message: error.message });
+            throw fastify.httpErrors.preconditionFailed(error.message);
           }
         }
         request.log.error(
           { err: error, contentId: body.episodeId },
           "Failed to process media event"
         );
-        return reply
-          .status(500)
-          .send({ message: "Unable to apply media processed event" });
+        throw fastify.httpErrors.internalServerError(
+          "Unable to apply media processed event"
+        );
       }
     },
   });
@@ -187,9 +180,9 @@ export default async function internalRoutes(fastify: FastifyInstance) {
         return reply.status(202).send({ accepted: true });
       } catch (error) {
         request.log.error({ err: error }, "Failed to apply engagement metrics");
-        return reply
-          .status(500)
-          .send({ message: "Unable to persist engagement metrics" });
+        throw fastify.httpErrors.internalServerError(
+          "Unable to persist engagement metrics"
+        );
       }
     },
   });

@@ -12,9 +12,17 @@ const createTagSchema = z.object({
   slug: z.string().min(1).optional(),
 });
 
+const cursorSchema = z.preprocess((value) => {
+  if (typeof value !== "string") {
+    return value;
+  }
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? undefined : trimmed;
+}, z.string().uuid().optional());
+
 const listTagsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
-  cursor: z.string().uuid().optional(),
+  cursor: cursorSchema,
 });
 
 export default async function adminTagRoutes(fastify: FastifyInstance) {
@@ -62,7 +70,10 @@ export default async function adminTagRoutes(fastify: FastifyInstance) {
       try {
         const adminId = requireAdminId(request, reply);
         request.log.debug({ adminId }, "Listing tags");
-        const result = await catalog.listTags(query);
+        const result = await catalog.listTags({
+          limit: query.limit,
+          cursor: query.cursor ?? null,
+        });
         return reply.status(200).send(result);
       } catch (error) {
         request.log.error({ err: error }, "Failed to list tags");

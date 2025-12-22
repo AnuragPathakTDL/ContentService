@@ -5,6 +5,7 @@ import adminSeasonRoutes from "./seasons";
 import adminEpisodeRoutes from "./episodes";
 import adminTagRoutes from "./tags";
 import adminReelRoutes from "./reels";
+import adminCarouselRoutes from "./carousel";
 
 export default async function adminRoutes(fastify: FastifyInstance) {
   fastify.addHook("preHandler", async (request, reply) => {
@@ -12,14 +13,26 @@ export default async function adminRoutes(fastify: FastifyInstance) {
 
     const rolesHeader =
       request.headers["x-admin-role"] ?? request.headers["x-user-roles"];
-    const roles =
-      typeof rolesHeader === "string"
-        ? rolesHeader.split(/[,\s]+/).filter(Boolean)
-        : [];
-    const isAdmin = roles.some((role) => role.toLowerCase() === "admin");
+
+    const roles = Array.isArray(rolesHeader)
+      ? rolesHeader
+      : typeof rolesHeader === "string"
+      ? rolesHeader.split(",").map((role) => role.trim()).filter(Boolean)
+      : [];
+
+    const userTypeHeader =
+      typeof request.headers["x-user-type"] === "string"
+        ? request.headers["x-user-type"]
+        : "";
+
+    const isAdminUserType =
+      userTypeHeader.trim().toUpperCase() === "ADMIN";
+
+    const isAdmin =
+      isAdminUserType || roles.some((role) => role.toLowerCase() === "admin");
 
     if (!isAdmin) {
-      throw reply.server.httpErrors.forbidden("Admin role required");
+      throw reply.server.httpErrors.forbidden("Admin user required");
     }
 
     const adminId =
@@ -52,4 +65,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
   await fastify.register(adminEpisodeRoutes, { prefix: "/catalog/episodes" });
   await fastify.register(adminReelRoutes, { prefix: "/catalog/reels" });
   await fastify.register(adminTagRoutes, { prefix: "/catalog/tags" });
+  await fastify.register(adminCarouselRoutes, {
+    prefix: "/catalog/carousel",
+  });
 }

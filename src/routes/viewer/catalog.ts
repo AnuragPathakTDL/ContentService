@@ -2,14 +2,10 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { loadConfig } from "../../config";
 import {
   feedQuerySchema,
-  feedResponseSchema,
   seriesDetailParamsSchema,
-  seriesDetailResponseSchema,
   relatedSeriesParamsSchema,
   relatedSeriesQuerySchema,
-  relatedSeriesResponseSchema,
   categoryListQuerySchema,
-  categoryListResponseSchema,
 } from "../../schemas/viewer-catalog";
 import { ViewerCatalogService } from "../../services/viewer-catalog-service";
 import {
@@ -48,9 +44,6 @@ export default async function viewerCatalogRoutes(fastify: FastifyInstance) {
     preHandler: verifyRequest,
     schema: {
       querystring: feedQuerySchema,
-      response: {
-        200: feedResponseSchema,
-      },
     },
     handler: async (request, reply) => {
       const query = feedQuerySchema.parse(request.query);
@@ -75,12 +68,11 @@ export default async function viewerCatalogRoutes(fastify: FastifyInstance) {
             },
             "Catalog data quality failure on viewer feed"
           );
-          return reply
-            .status(500)
-            .send({
-              message: "Catalog data quality issue",
-              issue: error.issue.kind,
-            });
+          const failure = fastify.httpErrors.internalServerError(
+            "Catalog data quality issue"
+          );
+          (failure as { issue?: string }).issue = error.issue.kind;
+          throw failure;
         }
         throw error;
       }
@@ -92,9 +84,6 @@ export default async function viewerCatalogRoutes(fastify: FastifyInstance) {
     preHandler: verifyRequest,
     schema: {
       params: seriesDetailParamsSchema,
-      response: {
-        200: seriesDetailResponseSchema,
-      },
     },
     handler: async (request, reply) => {
       const params = seriesDetailParamsSchema.parse(request.params);
@@ -103,7 +92,7 @@ export default async function viewerCatalogRoutes(fastify: FastifyInstance) {
           slug: params.slug,
         });
         if (!result) {
-          return reply.status(404).send({ message: "Series not found" });
+          throw fastify.httpErrors.notFound("Series not found");
         }
         reply.header(
           "cache-control",
@@ -125,12 +114,11 @@ export default async function viewerCatalogRoutes(fastify: FastifyInstance) {
             },
             "Catalog data quality failure on series detail"
           );
-          return reply
-            .status(500)
-            .send({
-              message: "Catalog data quality issue",
-              issue: error.issue.kind,
-            });
+          const failure = fastify.httpErrors.internalServerError(
+            "Catalog data quality issue"
+          );
+          (failure as { issue?: string }).issue = error.issue.kind;
+          throw failure;
         }
         throw error;
       }
@@ -143,9 +131,6 @@ export default async function viewerCatalogRoutes(fastify: FastifyInstance) {
     schema: {
       params: relatedSeriesParamsSchema,
       querystring: relatedSeriesQuerySchema,
-      response: {
-        200: relatedSeriesResponseSchema,
-      },
     },
     handler: async (request, reply) => {
       const params = relatedSeriesParamsSchema.parse(request.params);
@@ -156,7 +141,7 @@ export default async function viewerCatalogRoutes(fastify: FastifyInstance) {
           limit: query.limit,
         });
         if (!result) {
-          return reply.status(404).send({ message: "Series not found" });
+          throw fastify.httpErrors.notFound("Series not found");
         }
         reply.header(
           "cache-control",
@@ -176,12 +161,11 @@ export default async function viewerCatalogRoutes(fastify: FastifyInstance) {
             },
             "Catalog data quality failure on related series"
           );
-          return reply
-            .status(500)
-            .send({
-              message: "Catalog data quality issue",
-              issue: error.issue.kind,
-            });
+          const failure = fastify.httpErrors.internalServerError(
+            "Catalog data quality issue"
+          );
+          (failure as { issue?: string }).issue = error.issue.kind;
+          throw failure;
         }
         throw error;
       }
@@ -193,9 +177,6 @@ export default async function viewerCatalogRoutes(fastify: FastifyInstance) {
     preHandler: verifyRequest,
     schema: {
       querystring: categoryListQuerySchema,
-      response: {
-        200: categoryListResponseSchema,
-      },
     },
     handler: async (request, reply) => {
       const query = categoryListQuerySchema.parse(request.query);

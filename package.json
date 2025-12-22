@@ -12,7 +12,9 @@
         "migrate:deploy": "prisma migrate deploy",
         "typecheck": "tsc --noEmit",
         "lint": "eslint . --ext .ts",
-        "format": "prettier --write ."
+        "format": "prettier --write .",
+        "test:contracts": "vitest run tests/mobile-contract.test.ts",
+        "test:mobile-load": "autocannon -c 20 -d 15 http://localhost:4600/api/v1/content/mobile/home"
     },
     "engines": {
         "node": ">=18.18"
@@ -32,6 +34,7 @@
         "@opentelemetry/sdk-node": "^0.46.0",
         "@opentelemetry/semantic-conventions": "^1.19.0",
         "@prisma/client": "^5.10.2",
+        "undici": "^6.13.0",
         "dotenv": "^16.3.1",
         "fastify": "^4.25.2",
         "fastify-plugin": "^4.5.1",
@@ -50,6 +53,8 @@
         "prisma": "^5.10.2",
         "ts-node": "^10.9.2",
         "tsx": "^4.7.1",
-        "typescript": "^5.3.3"
+        "typescript": "^5.3.3",
+        "autocannon": "^7.14.0",
+        "vitest": "^1.6.0"
     }
 }

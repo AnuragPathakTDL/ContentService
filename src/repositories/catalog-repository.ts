@@ -1,4 +1,5 @@
 import {
+  CarouselEntry,
   Category,
   Episode,
   MediaAsset,
@@ -41,6 +42,16 @@ export type SeriesWithRelations = Series & {
     }
   >;
   standaloneEpisodes: EpisodeWithRelations[];
+};
+
+export type ReelWithRelations = Reel & {
+  mediaAsset: (MediaAsset & { variants: MediaAssetVariant[] }) | null;
+  category: Category | null;
+};
+
+export type CarouselEntryWithContent = CarouselEntry & {
+  episode: EpisodeWithRelations | null;
+  series: (Series & { category: Category | null }) | null;
 };
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -271,6 +282,21 @@ export class CatalogRepository {
     });
   }
 
+  async findSeriesByIds(ids: string[]) {
+    if (ids.length === 0) {
+      return [] as Array<Series & { category: Category | null }>;
+    }
+    return this.prisma.series.findMany({
+      where: {
+        id: { in: ids },
+        deletedAt: null,
+      },
+      include: {
+        category: true,
+      },
+    });
+  }
+
   async softDeleteSeries(id: string, adminId?: string) {
     return this.prisma.series.update({
       where: { id },
@@ -416,6 +442,30 @@ export class CatalogRepository {
     });
   }
 
+  async findEpisodesWithRelationsByIds(ids: string[]) {
+    if (ids.length === 0) {
+      return [] as EpisodeWithRelations[];
+    }
+    const rows = await this.prisma.episode.findMany({
+      where: {
+        id: { in: ids },
+        deletedAt: null,
+      },
+      include: {
+        mediaAsset: {
+          include: { variants: true },
+        },
+        series: {
+          include: {
+            category: true,
+          },
+        },
+        season: true,
+      },
+    });
+    return rows as EpisodeWithRelations[];
+  }
+
   async findReelById(id: string) {
     return this.prisma.reel.findFirst({
       where: { id, deletedAt: null },
@@ -423,6 +473,7 @@ export class CatalogRepository {
         mediaAsset: {
           include: { variants: true },
         },
+        category: true,
       },
     });
   }
@@ -646,6 +697,139 @@ export class CatalogRepository {
 
     return {
       items: rows as EpisodeWithRelations[],
+      nextCursor,
+    };
+  }
+
+  async replaceCarouselEntries(params: {
+    adminId: string;
+    items: Array<{
+      position: number;
+      seriesId?: string | null;
+      episodeId?: string | null;
+    }>;
+  }) {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.carouselEntry.deleteMany({});
+      if (params.items.length === 0) {
+        return;
+      }
+      for (const item of params.items) {
+        await tx.carouselEntry.create({
+          data: {
+            position: item.position,
+            seriesId: item.seriesId ?? null,
+            episodeId: item.episodeId ?? null,
+            createdByAdminId: params.adminId,
+            updatedByAdminId: params.adminId,
+          },
+        });
+      }
+    });
+  }
+
+  async listCarouselEntries(): Promise<CarouselEntryWithContent[]> {
+    const rows = await this.prisma.carouselEntry.findMany({
+      where: {
+        OR: [
+          {
+            episodeId: { not: null },
+            episode: {
+              is: {
+                deletedAt: null,
+                status: PublicationStatus.PUBLISHED,
+                visibility: { in: [Visibility.PUBLIC, Visibility.UNLISTED] },
+                mediaAsset: {
+                  is: {
+                    status: MediaAssetStatus.READY,
+                    deletedAt: null,
+                  },
+                },
+              },
+            },
+          },
+          {
+            seriesId: { not: null },
+            series: {
+              is: {
+                deletedAt: null,
+                status: PublicationStatus.PUBLISHED,
+                visibility: Visibility.PUBLIC,
+              },
+            },
+          },
+        ],
+      },
+      orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+      include: {
+        series: {
+          include: {
+            category: true,
+          },
+        },
+        episode: {
+          include: {
+            mediaAsset: {
+              include: {
+                variants: true,
+              },
+            },
+            series: {
+              include: {
+                category: true,
+              },
+            },
+            season: true,
+          },
+        },
+      },
+    });
+    return rows as CarouselEntryWithContent[];
+  }
+
+  async listPublishedReels(params: {
+    limit?: number;
+    cursor?: string | null;
+    now?: Date;
+  }): Promise<PaginatedResult<ReelWithRelations>> {
+    const limit = normalizeLimit(params.limit);
+    const now = params.now ?? new Date();
+
+    const rows = await this.prisma.reel.findMany({
+      where: {
+        deletedAt: null,
+        status: PublicationStatus.PUBLISHED,
+        visibility: { in: [Visibility.PUBLIC, Visibility.UNLISTED] },
+        OR: [{ publishedAt: null }, { publishedAt: { lte: now } }],
+        mediaAsset: {
+          is: {
+            status: MediaAssetStatus.READY,
+            deletedAt: null,
+          },
+        },
+      },
+      include: {
+        mediaAsset: {
+          include: {
+            variants: true,
+          },
+        },
+        category: true,
+      },
+      orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
+      take: limit + 1,
+      cursor: params.cursor ? { id: params.cursor } : undefined,
+      skip: params.cursor ? 1 : 0,
+    });
+
+    let nextCursor: string | null = null;
+    if (rows.length > limit) {
+      const next = rows.pop();
+      nextCursor = next?.id ?? null;
+    }
+
+    return {
+      items: rows as ReelWithRelations[],
       nextCursor,
     };
   }

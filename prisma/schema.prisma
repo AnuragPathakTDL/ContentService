@@ -71,6 +71,7 @@ model Series {
   category Category? @relation(fields: [categoryId], references: [id])
   seasons  Season[]
   episodes Episode[]
+  carouselEntries CarouselEntry[]
 
   @@index([categoryId])
   @@index([status, visibility])
@@ -124,6 +125,7 @@ model Episode {
   season Season? @relation(fields: [seasonId], references: [id])
 
   mediaAsset MediaAsset?
+  carouselEntries CarouselEntry[]
 
   @@index([seriesId, status])
   @@index([seasonId])
@@ -207,4 +209,20 @@ model Tag {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   deletedAt        DateTime?
+}
+
+model CarouselEntry {
+  id               String   @id @default(uuid())
+  position         Int
+  seriesId         String?
+  episodeId        String?
+  createdByAdminId String?
+  updatedByAdminId String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  series  Series?  @relation(fields: [seriesId], references: [id])
+  episode Episode? @relation(fields: [episodeId], references: [id])
+
+  @@index([position])
 }

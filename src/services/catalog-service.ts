@@ -13,6 +13,8 @@ import {
 import {
   CatalogRepository,
   PaginatedResult,
+  CarouselEntryWithContent,
+  EpisodeWithRelations,
 } from "../repositories/catalog-repository";
 import { CatalogEventsPublisher, type CatalogEvent } from "./catalog-events";
 
@@ -100,6 +102,45 @@ export class CatalogService {
       timestamp: new Date().toISOString(),
       payload: event.payload,
     });
+  }
+
+  private ensureCarouselEpisodeSelectable(episode: EpisodeWithRelations) {
+    if (episode.status !== PublicationStatus.PUBLISHED) {
+      throw new CatalogServiceError(
+        "FAILED_PRECONDITION",
+        `Episode ${episode.id} must be published before featuring`
+      );
+    }
+    if (
+      episode.visibility !== Visibility.PUBLIC &&
+      episode.visibility !== Visibility.UNLISTED
+    ) {
+      throw new CatalogServiceError(
+        "FAILED_PRECONDITION",
+        `Episode ${episode.id} must be publicly visible before featuring`
+      );
+    }
+    if (!episode.mediaAsset || episode.mediaAsset.status !== MediaAssetStatus.READY) {
+      throw new CatalogServiceError(
+        "FAILED_PRECONDITION",
+        `Episode ${episode.id} does not have a ready streaming asset`
+      );
+    }
+  }
+
+  private ensureCarouselSeriesSelectable(series: Series) {
+    if (series.status !== PublicationStatus.PUBLISHED) {
+      throw new CatalogServiceError(
+        "FAILED_PRECONDITION",
+        `Series ${series.id} must be published before featuring`
+      );
+    }
+    if (series.visibility !== Visibility.PUBLIC) {
+      throw new CatalogServiceError(
+        "FAILED_PRECONDITION",
+        `Series ${series.id} must be public before featuring`
+      );
+    }
   }
 
   async createCategory(
@@ -668,6 +709,98 @@ export class CatalogService {
     >
   > {
     return this.repo.listModerationQueue(params);
+  }
+
+  async setCarouselEntries(
+    adminId: string,
+    input: {
+      items: Array<{ seriesId?: string | null; episodeId?: string | null }>;
+    }
+  ): Promise<CarouselEntryWithContent[]> {
+    if (!input.items || input.items.length === 0) {
+      throw new CatalogServiceError(
+        "FAILED_PRECONDITION",
+        "At least one carousel entry is required"
+      );
+    }
+
+    const normalized = input.items.map((item, index) => ({
+      index,
+      seriesId: item.seriesId ?? null,
+      episodeId: item.episodeId ?? null,
+    }));
+
+    normalized.forEach((entry, index) => {
+      const hasSeries = Boolean(entry.seriesId);
+      const hasEpisode = Boolean(entry.episodeId);
+      if (hasSeries === hasEpisode) {
+        throw new CatalogServiceError(
+          "FAILED_PRECONDITION",
+          `Carousel entry ${index + 1} must reference exactly one series or one episode`
+        );
+      }
+    });
+
+    const episodeIds = Array.from(
+      new Set(
+        normalized
+          .map((entry) => entry.episodeId)
+          .filter(
+            (value): value is string => typeof value === "string" && value.length > 0
+          )
+      )
+    );
+    const seriesIds = Array.from(
+      new Set(
+        normalized
+          .map((entry) => entry.seriesId)
+          .filter(
+            (value): value is string => typeof value === "string" && value.length > 0
+          )
+      )
+    );
+
+    const [episodes, series] = await Promise.all([
+      this.repo.findEpisodesWithRelationsByIds(episodeIds),
+      this.repo.findSeriesByIds(seriesIds),
+    ]);
+
+    const episodesById = new Map(episodes.map((episode) => [episode.id, episode]));
+    const seriesById = new Map(series.map((record) => [record.id, record]));
+
+    normalized.forEach((entry) => {
+      if (entry.episodeId) {
+        const episode = episodesById.get(entry.episodeId);
+        if (!episode) {
+          throw new CatalogServiceError(
+            "FAILED_PRECONDITION",
+            `Episode ${entry.episodeId} is unavailable`
+          );
+        }
+        this.ensureCarouselEpisodeSelectable(episode);
+      }
+      if (entry.seriesId) {
+        const record = seriesById.get(entry.seriesId);
+        if (!record) {
+          throw new CatalogServiceError(
+            "FAILED_PRECONDITION",
+            `Series ${entry.seriesId} is unavailable`
+          );
+        }
+        this.ensureCarouselSeriesSelectable(record);
+      }
+    });
+
+    await this.repo.replaceCarouselEntries({
+      adminId,
+      items: normalized.map((entry, index) => ({
+        position: index + 1,
+        episodeId: entry.episodeId,
+        seriesId: entry.seriesId,
+      })),
+    });
+
+    return this.repo.listCarouselEntries();
   }
 
   private isTransitionAllowed(

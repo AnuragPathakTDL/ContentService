@@ -204,7 +204,7 @@ function extractCaptions(
     .sort((a, b) => a.language.localeCompare(b.language));
 }
 
-function buildFeedItem(
+export function buildFeedItem(
   episode: EpisodeWithRelations,
   personalization: ViewerFeedItem["personalization"],
   rating: number | null
