@@ -61,7 +61,8 @@ function buildHeaders(options: ServiceRequestOptions) {
   }
 
   if (config.SERVICE_AUTH_TOKEN) {
-    headers.authorization = headers.authorization ?? `Bearer ${config.SERVICE_AUTH_TOKEN}`;
+    headers.authorization =
+      headers.authorization ?? `Bearer ${config.SERVICE_AUTH_TOKEN}`;
     headers["x-service-token"] = config.SERVICE_AUTH_TOKEN;
   }
 
@@ -73,71 +74,83 @@ export async function performServiceRequest<T = unknown>(
 ): Promise<ServiceRequestResult<T>> {
   const url = buildUrl(options.baseUrl, options.path, options.query);
   const headers = buildHeaders(options);
-  const timeout = options.timeoutMs ?? loadConfig().SERVICE_REQUEST_TIMEOUT_MS ?? DEFAULT_TIMEOUT_MS;
+  const timeout =
+    options.timeoutMs ??
+    loadConfig().SERVICE_REQUEST_TIMEOUT_MS ??
+    DEFAULT_TIMEOUT_MS;
   const body =
     typeof options.body === "string" || options.body instanceof Uint8Array
       ? options.body
       : typeof options.body === "undefined"
-      ? undefined
-      : JSON.stringify(options.body);
+        ? undefined
+        : JSON.stringify(options.body);
 
   const sanitizedUrl = `${url.origin}${url.pathname}`;
-  const span = tracer.startSpan(options.spanName ?? `client:${options.serviceName}`, {
-    kind: SpanKind.CLIENT,
-    attributes: {
-      "http.method": options.method,
-      "http.url": sanitizedUrl,
-      "http.target": `${url.pathname}${url.search}`,
-      "net.peer.name": url.hostname,
-      "service.request.timeout_ms": timeout,
-      "service.request.name": options.serviceName,
-    },
-  });
+  const span = tracer.startSpan(
+    options.spanName ?? `client:${options.serviceName}`,
+    {
+      kind: SpanKind.CLIENT,
+      attributes: {
+        "http.method": options.method,
+        "http.url": sanitizedUrl,
+        "http.target": `${url.pathname}${url.search}`,
+        "net.peer.name": url.hostname,
+        "service.request.timeout_ms": timeout,
+        "service.request.name": options.serviceName,
+      },
+    }
+  );
 
   try {
-    return await context.with(trace.setSpan(context.active(), span), async () => {
-      const response = await request(url, {
-        method: options.method,
-        headers,
-        body,
-        headersTimeout: timeout,
-        bodyTimeout: timeout,
-      });
-
-      span.setAttribute("http.status_code", response.statusCode);
-
-      if (response.statusCode >= 400) {
-        span.setStatus({
-          code: SpanStatusCode.ERROR,
-          message: `HTTP ${response.statusCode}`,
+    return await context.with(
+      trace.setSpan(context.active(), span),
+      async () => {
+        const response = await request(url, {
+          method: options.method,
+          headers,
+          body,
+          headersTimeout: timeout,
+          bodyTimeout: timeout,
         });
 
-        let errorPayload: unknown;
-        try {
-          errorPayload = await response.body.json();
-        } catch {
-          errorPayload = await response.body.text();
+        span.setAttribute("http.status_code", response.statusCode);
+
+        if (response.statusCode >= 400) {
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: `HTTP ${response.statusCode}`,
+          });
+
+          let errorPayload: unknown;
+          try {
+            errorPayload = await response.body.json();
+          } catch {
+            errorPayload = await response.body.text();
+          }
+
+          throw new ServiceRequestError(
+            `Upstream ${options.serviceName} error: HTTP ${response.statusCode}`,
+            response.statusCode,
+            errorPayload
+          );
         }
 
-        throw new ServiceRequestError(
-          `Upstream ${options.serviceName} error: HTTP ${response.statusCode}`,
-          response.statusCode,
-          errorPayload
-        );
-      }
+        span.setStatus({ code: SpanStatusCode.OK });
 
-      span.setStatus({ code: SpanStatusCode.OK });
+        if (response.statusCode === 204) {
+          return {
+            statusCode: response.statusCode,
+            payload: undefined as T,
+          } satisfies ServiceRequestResult<T>;
+        }
 
-      if (response.statusCode === 204) {
+        const payload = (await response.body.json()) as T;
         return {
           statusCode: response.statusCode,
-          payload: undefined as T,
+          payload,
         } satisfies ServiceRequestResult<T>;
       }
-
-      const payload = (await response.body.json()) as T;
-      return { statusCode: response.statusCode, payload } satisfies ServiceRequestResult<T>;
-    });
+    );
   } catch (error) {
     if (error instanceof ServiceRequestError) {
       span.recordException(error);
@@ -146,7 +159,8 @@ export async function performServiceRequest<T = unknown>(
     }
     span.setStatus({
       code: SpanStatusCode.ERROR,
-      message: error instanceof Error ? error.message : "Service request failed",
+      message:
+        error instanceof Error ? error.message : "Service request failed",
     });
     throw error;
   } finally {

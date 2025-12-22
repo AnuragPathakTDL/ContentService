@@ -26,14 +26,16 @@ export type ContinueWatchEntry = z.infer<typeof continueWatchEntrySchema>;
 export type ContinueWatchQuery = z.infer<typeof continueWatchQuerySchema>;
 
 export class EngagementClient {
-  constructor(private readonly options: { baseUrl: string; timeoutMs?: number }) {}
+  constructor(
+    private readonly options: { baseUrl: string; timeoutMs?: number }
+  ) {}
 
   async getContinueWatch(
     payload: ContinueWatchQuery
   ): Promise<ContinueWatchEntry[]> {
     const body = continueWatchQuerySchema.parse(payload);
-    const response: ServiceRequestResult<unknown> =
-      await performServiceRequest({
+    const response: ServiceRequestResult<unknown> = await performServiceRequest(
+      {
         serviceName: "engagement",
         baseUrl: this.options.baseUrl,
         path: "/internal/progress/query",
@@ -41,7 +43,8 @@ export class EngagementClient {
         body,
         timeoutMs: this.options.timeoutMs,
         spanName: "client:engagement:continueWatch",
-      });
+      }
+    );
 
     const parsed = continueWatchResponseSchema.safeParse(response.payload);
     if (!parsed.success) {

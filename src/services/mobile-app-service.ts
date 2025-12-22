@@ -101,13 +101,15 @@ type EntitlementLookup = {
 };
 
 export class MobileAppService {
-  constructor(private readonly deps: {
-    viewerCatalog: ViewerCatalogService;
-    repository: CatalogRepository;
-    config: MobileAppConfig;
-    engagementClient?: EngagementClient;
-    subscriptionClient?: SubscriptionClient;
-  }) {}
+  constructor(
+    private readonly deps: {
+      viewerCatalog: ViewerCatalogService;
+      repository: CatalogRepository;
+      config: MobileAppConfig;
+      engagementClient?: EngagementClient;
+      subscriptionClient?: SubscriptionClient;
+    }
+  ) {}
 
   async listTags(query: MobileTagsQuery): Promise<MobileTagsResponse> {
     const parsed = mobileTagsQuerySchema.parse(query);
@@ -171,7 +173,11 @@ export class MobileAppService {
       .slice(0, this.deps.config.sectionItemLimit)
       .map((item) => this.toSectionEntry(item, progressMap.get(item.id)));
 
-    const sections = this.buildSections(sectionItems, continueWatch, parsed.tag);
+    const sections = this.buildSections(
+      sectionItems,
+      continueWatch,
+      parsed.tag
+    );
 
     const currentPage = parsed.page ?? 1;
     const hasNextPage = Boolean(feed.nextCursor);
@@ -302,7 +308,11 @@ export class MobileAppService {
     const items: CarouselEntryView[] = [];
     for (const entry of entries) {
       if (entry.episode) {
-        const feedItem = buildFeedItem(entry.episode, { reason: "recent" }, null);
+        const feedItem = buildFeedItem(
+          entry.episode,
+          { reason: "recent" },
+          null
+        );
         items.push(this.toCarouselItem(feedItem, entry.position));
         continue;
       }
@@ -406,10 +416,7 @@ export class MobileAppService {
     };
   }
 
-  private toSectionEntry(
-    item: ViewerFeedItem,
-    progress?: ContinueWatchEntry
-  ) {
+  private toSectionEntry(item: ViewerFeedItem, progress?: ContinueWatchEntry) {
     const watchedSeconds = progress
       ? Math.min(progress.watched_duration, item.durationSeconds)
       : 0;
@@ -495,7 +502,8 @@ export class MobileAppService {
       ratings.length > 0
         ? Number(
             (
-              ratings.reduce((total, value) => total + value, 0) / ratings.length
+              ratings.reduce((total, value) => total + value, 0) /
+              ratings.length
             ).toFixed(1)
           )
         : null;

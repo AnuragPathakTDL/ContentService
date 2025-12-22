@@ -42,8 +42,11 @@ function buildRequestContext(request: FastifyRequest): MobileRequestContext {
   const roles = Array.isArray(rolesHeader)
     ? rolesHeader
     : typeof rolesHeader === "string"
-    ? rolesHeader.split(",").map((entry) => entry.trim()).filter(Boolean)
-    : [];
+      ? rolesHeader
+          .split(",")
+          .map((entry) => entry.trim())
+          .filter(Boolean)
+      : [];
 
   return {
     userId: userId && userId.length > 0 ? userId : undefined,
@@ -95,7 +98,10 @@ export default async function mobileAppRoutes(fastify: FastifyInstance) {
     subscriptionClient,
   });
 
-  const verifyRequest = async (request: FastifyRequest, reply: FastifyReply) => {
+  const verifyRequest = async (
+    request: FastifyRequest,
+    reply: FastifyReply
+  ) => {
     await fastify.verifyServiceRequest(request, reply);
   };
 

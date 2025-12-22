@@ -21,7 +21,9 @@ export type ContentEntitlement = {
 };
 
 export class SubscriptionClient {
-  constructor(private readonly options: { baseUrl: string; timeoutMs?: number }) {}
+  constructor(
+    private readonly options: { baseUrl: string; timeoutMs?: number }
+  ) {}
 
   async checkEntitlement(
     payload: EntitlementRequest

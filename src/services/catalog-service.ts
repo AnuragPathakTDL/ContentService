@@ -120,7 +120,10 @@ export class CatalogService {
         `Episode ${episode.id} must be publicly visible before featuring`
       );
     }
-    if (!episode.mediaAsset || episode.mediaAsset.status !== MediaAssetStatus.READY) {
+    if (
+      !episode.mediaAsset ||
+      episode.mediaAsset.status !== MediaAssetStatus.READY
+    ) {
       throw new CatalogServiceError(
         "FAILED_PRECONDITION",
         `Episode ${episode.id} does not have a ready streaming asset`
@@ -746,7 +749,8 @@ export class CatalogService {
         normalized
           .map((entry) => entry.episodeId)
           .filter(
-            (value): value is string => typeof value === "string" && value.length > 0
+            (value): value is string =>
+              typeof value === "string" && value.length > 0
           )
       )
     );
@@ -755,7 +759,8 @@ export class CatalogService {
         normalized
           .map((entry) => entry.seriesId)
           .filter(
-            (value): value is string => typeof value === "string" && value.length > 0
+            (value): value is string =>
+              typeof value === "string" && value.length > 0
           )
       )
     );
@@ -765,7 +770,9 @@ export class CatalogService {
       this.repo.findSeriesByIds(seriesIds),
     ]);
 
-    const episodesById = new Map(episodes.map((episode) => [episode.id, episode]));
+    const episodesById = new Map(
+      episodes.map((episode) => [episode.id, episode])
+    );
     const seriesById = new Map(series.map((record) => [record.id, record]));
 
     normalized.forEach((entry) => {

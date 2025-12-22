@@ -17,16 +17,18 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     const roles = Array.isArray(rolesHeader)
       ? rolesHeader
       : typeof rolesHeader === "string"
-      ? rolesHeader.split(",").map((role) => role.trim()).filter(Boolean)
-      : [];
+        ? rolesHeader
+            .split(",")
+            .map((role) => role.trim())
+            .filter(Boolean)
+        : [];
 
     const userTypeHeader =
       typeof request.headers["x-user-type"] === "string"
         ? request.headers["x-user-type"]
         : "";
 
-    const isAdminUserType =
-      userTypeHeader.trim().toUpperCase() === "ADMIN";
+    const isAdminUserType = userTypeHeader.trim().toUpperCase() === "ADMIN";
 
     const isAdmin =
       isAdminUserType || roles.some((role) => role.toLowerCase() === "admin");
